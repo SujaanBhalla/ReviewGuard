@@ -1,4 +1,3 @@
-
 import os
 import re
 import joblib
@@ -16,7 +15,54 @@ from google import genai
 st.set_page_config(
     page_title="ReviewGuard",
     page_icon="🛡️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+
+# ============================================================
+# CUSTOM CSS
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    /* Main container */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
+    }
+
+    /* Navigation tabs */
+    button[data-baseweb="tab"] {
+        font-size: 15px;
+        font-weight: 600;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* Tab underline */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        font-weight: 700;
+    }
+
+    /* Section spacing */
+    .section-box {
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.25);
+        margin-bottom: 15px;
+    }
+
+    /* Small muted text */
+    .muted {
+        opacity: 0.75;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -32,7 +78,9 @@ gemini_client = None
 
 if GEMINI_API_KEY:
     try:
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        gemini_client = genai.Client(
+            api_key=GEMINI_API_KEY
+        )
     except Exception:
         gemini_client = None
 
@@ -51,13 +99,20 @@ def load_data():
 
 @st.cache_resource
 def load_models():
-    logistic = joblib.load("models/logistic_model.pkl")
-    random_forest = joblib.load("models/random_forest_model.pkl")
+
+    logistic = joblib.load(
+        "models/logistic_model.pkl"
+    )
+
+    random_forest = joblib.load(
+        "models/random_forest_model.pkl"
+    )
 
     return logistic, random_forest
 
 
 df = load_data()
+
 logistic_model, random_forest_model = load_models()
 
 
@@ -111,47 +166,89 @@ CATEGORICAL_FEATURES = [
 # ============================================================
 
 def make_feature_dataframe(review_data):
-    return pd.DataFrame([review_data])
+
+    return pd.DataFrame(
+        [review_data]
+    )
 
 
 def get_prediction(review_data):
 
-    input_df = make_feature_dataframe(review_data)
+    input_df = make_feature_dataframe(
+        review_data
+    )
 
-    lr_prediction = logistic_model.predict(input_df)[0]
-    rf_prediction = random_forest_model.predict(input_df)[0]
+    lr_prediction = logistic_model.predict(
+        input_df
+    )[0]
+
+    rf_prediction = random_forest_model.predict(
+        input_df
+    )[0]
 
     try:
-        lr_probability = logistic_model.predict_proba(input_df)[0][1]
+
+        lr_probability = (
+            logistic_model
+            .predict_proba(input_df)[0][1]
+        )
+
     except Exception:
-        lr_probability = float(lr_prediction)
+
+        lr_probability = float(
+            lr_prediction
+        )
 
     try:
-        rf_probability = random_forest_model.predict_proba(input_df)[0][1]
+
+        rf_probability = (
+            random_forest_model
+            .predict_proba(input_df)[0][1]
+        )
+
     except Exception:
-        rf_probability = float(rf_prediction)
+
+        rf_probability = float(
+            rf_prediction
+        )
 
     fake_risk = (
-        (lr_probability + rf_probability) / 2
+        (lr_probability + rf_probability)
+        / 2
     ) * 100
 
     if fake_risk >= 70:
+
         classification = "Suspicious"
 
     elif fake_risk <= 30:
+
         classification = "Likely Genuine"
 
     else:
+
         classification = "Uncertain"
 
     return {
+
         "classification": classification,
+
         "fake_risk": fake_risk,
-        "genuine_chance": 100 - fake_risk,
-        "lr_prediction": int(lr_prediction),
-        "rf_prediction": int(rf_prediction),
-        "lr_probability": lr_probability * 100,
-        "rf_probability": rf_probability * 100
+
+        "genuine_chance":
+            100 - fake_risk,
+
+        "lr_prediction":
+            int(lr_prediction),
+
+        "rf_prediction":
+            int(rf_prediction),
+
+        "lr_probability":
+            lr_probability * 100,
+
+        "rf_probability":
+            rf_probability * 100
     }
 
 
@@ -160,51 +257,62 @@ def generate_explanation(review):
     signals = []
 
     if review["exclamation_marks"] >= 3:
+
         signals.append(
             f"High number of exclamation marks "
             f"({review['exclamation_marks']})"
         )
 
     if review["all_caps_ratio"] >= 20:
+
         signals.append(
             f"High capitalization ratio "
             f"({review['all_caps_ratio']:.1f}%)"
         )
 
     if review["is_early_review"] == 1:
+
         signals.append(
             "The review was posted very early"
         )
 
     if review["reviewer_review_count"] <= 2:
+
         signals.append(
             f"Low reviewer history "
-            f"({review['reviewer_review_count']} previous reviews)"
+            f"({review['reviewer_review_count']} "
+            f"previous reviews)"
         )
 
     if review["verified_purchase"] == 0:
+
         signals.append(
             "Purchase is not verified"
         )
 
     if review["star_rating"] == 5:
+
         signals.append(
             "Maximum 5-star rating"
         )
 
     if review["sentiment"] == "positive":
+
         signals.append(
             "Strong positive sentiment"
         )
 
     if review["review_length_words"] <= 10:
+
         signals.append(
             "Very short review"
         )
 
     if not signals:
+
         signals.append(
-            "No major suspicious behavioral signal detected"
+            "No major suspicious behavioral "
+            "signal detected"
         )
 
     return signals
@@ -222,24 +330,40 @@ def agent_overall_analysis():
         df["is_fake_review"].sum()
     )
 
-    genuine = total - suspicious
+    genuine = (
+        total - suspicious
+    )
 
     suspicious_rate = (
         suspicious / total
     ) * 100
 
     return {
-        "tool": "overall_analysis",
-        "total_reviews": total,
-        "suspicious_reviews": suspicious,
-        "genuine_reviews": genuine,
-        "suspicious_rate": suspicious_rate
+
+        "tool":
+            "overall_analysis",
+
+        "total_reviews":
+            total,
+
+        "suspicious_reviews":
+            suspicious,
+
+        "genuine_reviews":
+            genuine,
+
+        "suspicious_rate":
+            suspicious_rate
     }
 
 
 def agent_product_analysis(product_id):
 
-    product_id = str(product_id).strip().upper()
+    product_id = (
+        str(product_id)
+        .strip()
+        .upper()
+    )
 
     product_df = df[
         df["product_id"]
@@ -252,34 +376,59 @@ def agent_product_analysis(product_id):
     if product_df.empty:
 
         return {
-            "tool": "product_analysis",
-            "error": f"Product {product_id} was not found."
+
+            "tool":
+                "product_analysis",
+
+            "error":
+                f"Product {product_id} "
+                "was not found."
         }
 
     total = len(product_df)
 
     suspicious = int(
-        product_df["is_fake_review"].sum()
+        product_df[
+            "is_fake_review"
+        ].sum()
     )
 
-    genuine = total - suspicious
+    genuine = (
+        total - suspicious
+    )
 
     suspicious_rate = (
         suspicious / total
     ) * 100
 
     average_rating = (
-        product_df["star_rating"].mean()
+        product_df[
+            "star_rating"
+        ].mean()
     )
 
     return {
-        "tool": "product_analysis",
-        "product_id": product_id,
-        "total_reviews": total,
-        "suspicious_reviews": suspicious,
-        "genuine_reviews": genuine,
-        "suspicious_rate": suspicious_rate,
-        "average_rating": average_rating
+
+        "tool":
+            "product_analysis",
+
+        "product_id":
+            product_id,
+
+        "total_reviews":
+            total,
+
+        "suspicious_reviews":
+            suspicious,
+
+        "genuine_reviews":
+            genuine,
+
+        "suspicious_rate":
+            suspicious_rate,
+
+        "average_rating":
+            average_rating
     }
 
 
@@ -290,108 +439,184 @@ def agent_category_analysis(category):
         .astype(str)
         .str.strip()
         .str.lower()
-        == str(category).strip().lower()
+        ==
+        str(category)
+        .strip()
+        .lower()
     ]
 
     if category_df.empty:
 
         return {
-            "tool": "category_analysis",
-            "error": f"Category '{category}' was not found."
+
+            "tool":
+                "category_analysis",
+
+            "error":
+                f"Category '{category}' "
+                "was not found."
         }
 
     total = len(category_df)
 
     suspicious = int(
-        category_df["is_fake_review"].sum()
+        category_df[
+            "is_fake_review"
+        ].sum()
     )
 
-    genuine = total - suspicious
+    genuine = (
+        total - suspicious
+    )
 
     suspicious_rate = (
         suspicious / total
     ) * 100
 
     average_rating = (
-        category_df["star_rating"].mean()
+        category_df[
+            "star_rating"
+        ].mean()
     )
 
     return {
-        "tool": "category_analysis",
-        "category": category,
-        "total_reviews": total,
-        "suspicious_reviews": suspicious,
-        "genuine_reviews": genuine,
-        "suspicious_rate": suspicious_rate,
-        "average_rating": average_rating
+
+        "tool":
+            "category_analysis",
+
+        "category":
+            category,
+
+        "total_reviews":
+            total,
+
+        "suspicious_reviews":
+            suspicious,
+
+        "genuine_reviews":
+            genuine,
+
+        "suspicious_rate":
+            suspicious_rate,
+
+        "average_rating":
+            average_rating
     }
 
 
-def agent_category_comparison(category1, category2):
+def agent_category_comparison(
+    category1,
+    category2
+):
 
-    result1 = agent_category_analysis(category1)
-    result2 = agent_category_analysis(category2)
+    result1 = agent_category_analysis(
+        category1
+    )
+
+    result2 = agent_category_analysis(
+        category2
+    )
 
     return {
-        "tool": "category_comparison",
-        "category1": result1,
-        "category2": result2
+
+        "tool":
+            "category_comparison",
+
+        "category1":
+            result1,
+
+        "category2":
+            result2
     }
 
 
 def agent_highest_risk_category():
 
     category_stats = (
-        df.groupby("category")["is_fake_review"]
+        df.groupby("category")
+        ["is_fake_review"]
         .agg(["count", "sum"])
         .reset_index()
     )
 
-    category_stats["suspicious_rate"] = (
+    category_stats[
+        "suspicious_rate"
+    ] = (
         category_stats["sum"]
-        / category_stats["count"]
+        /
+        category_stats["count"]
         * 100
     )
 
     row = category_stats.loc[
-        category_stats["suspicious_rate"].idxmax()
+        category_stats[
+            "suspicious_rate"
+        ].idxmax()
     ]
 
     return {
-        "tool": "highest_risk_category",
-        "category": row["category"],
-        "suspicious_rate": float(
-            row["suspicious_rate"]
-        ),
-        "total_reviews": int(row["count"]),
-        "suspicious_reviews": int(row["sum"])
+
+        "tool":
+            "highest_risk_category",
+
+        "category":
+            row["category"],
+
+        "suspicious_rate":
+            float(
+                row["suspicious_rate"]
+            ),
+
+        "total_reviews":
+            int(row["count"]),
+
+        "suspicious_reviews":
+            int(row["sum"])
     }
 
 
 def agent_explain_current_review():
 
-    review = st.session_state.current_review
+    review = (
+        st.session_state.current_review
+    )
 
     if review is None:
 
         return {
-            "tool": "review_explanation",
-            "error": (
+
+            "tool":
+                "review_explanation",
+
+            "error":
                 "No review has been analyzed yet. "
                 "Ask the user to analyze a review first."
-            )
         }
 
-    prediction = get_prediction(review)
+    prediction = get_prediction(
+        review
+    )
 
-    signals = generate_explanation(review)
+    signals = generate_explanation(
+        review
+    )
 
     return {
-        "tool": "review_explanation",
-        "classification": prediction["classification"],
-        "fake_risk": prediction["fake_risk"],
-        "genuine_chance": prediction["genuine_chance"],
-        "signals": signals
+
+        "tool":
+            "review_explanation",
+
+        "classification":
+            prediction["classification"],
+
+        "fake_risk":
+            prediction["fake_risk"],
+
+        "genuine_chance":
+            prediction["genuine_chance"],
+
+        "signals":
+            signals
     }
 
 
@@ -407,6 +632,7 @@ def extract_product_id(query):
     )
 
     if match:
+
         return match.group(0)
 
     return None
@@ -432,6 +658,7 @@ def extract_categories(query):
     for category in categories:
 
         if str(category).lower() in q:
+
             found.append(category)
 
     return found
@@ -443,9 +670,14 @@ def extract_categories(query):
 
 def detect_intent(query):
 
-    q = str(query).lower().strip()
+    q = (
+        str(query)
+        .lower()
+        .strip()
+    )
 
     product_id = extract_product_id(q)
+
     categories = extract_categories(q)
 
     # --------------------------------------------------------
@@ -458,21 +690,23 @@ def detect_intent(query):
             or "explain" in q
             or "reason" in q
         )
-        and (
+        and
+        (
             "suspicious" in q
             or "fake" in q
             or "risk" in q
             or "prediction" in q
         )
     ):
-        return "explain_review"
 
+        return "explain_review"
 
     # --------------------------------------------------------
     # PRODUCT ANALYSIS
     # --------------------------------------------------------
 
     product_keywords = [
+
         "product",
         "review",
         "reviews",
@@ -490,8 +724,8 @@ def detect_intent(query):
     )
 
     if product_id and product_question:
-        return "product_analysis"
 
+        return "product_analysis"
 
     # --------------------------------------------------------
     # CATEGORY COMPARISON
@@ -505,16 +739,18 @@ def detect_intent(query):
             or " vs " in q
             or "better" in q
         )
-        and len(categories) >= 2
+        and
+        len(categories) >= 2
     ):
-        return "comparison"
 
+        return "comparison"
 
     # --------------------------------------------------------
     # CATEGORY ANALYSIS
     # --------------------------------------------------------
 
     category_keywords = [
+
         "category",
         "suspicious rate",
         "fake reviews",
@@ -523,32 +759,46 @@ def detect_intent(query):
         "risk"
     ]
 
-    if categories and any(
-        keyword in q
-        for keyword in category_keywords
+    if (
+        categories
+        and
+        any(
+            keyword in q
+            for keyword in category_keywords
+        )
     ):
-        return "category_analysis"
 
+        return "category_analysis"
 
     # --------------------------------------------------------
     # HIGHEST RISK CATEGORY
     # --------------------------------------------------------
 
     if (
-        "highest risk" in q
-        or "highest suspicious" in q
-        or "most suspicious category" in q
-        or "riskiest category" in q
-        or "which category has the most" in q
-    ):
-        return "highest_risk"
 
+        "highest risk" in q
+
+        or
+        "highest suspicious" in q
+
+        or
+        "most suspicious category" in q
+
+        or
+        "riskiest category" in q
+
+        or
+        "which category has the most" in q
+    ):
+
+        return "highest_risk"
 
     # --------------------------------------------------------
     # OVERALL ANALYSIS
     # --------------------------------------------------------
 
     overall_keywords = [
+
         "overall",
         "all reviews",
         "total reviews",
@@ -561,12 +811,8 @@ def detect_intent(query):
         keyword in q
         for keyword in overall_keywords
     ):
+
         return "overall"
-
-
-    # --------------------------------------------------------
-    # GENERAL / GEMINI
-    # --------------------------------------------------------
 
     return "general"
 
@@ -581,74 +827,92 @@ def run_agent_tool(query):
 
     if intent == "explain_review":
 
-        return agent_explain_current_review()
-
+        return (
+            agent_explain_current_review()
+        )
 
     if intent == "product_analysis":
 
-        product_id = extract_product_id(query)
+        product_id = (
+            extract_product_id(query)
+        )
 
         if product_id:
 
-            return agent_product_analysis(
-                product_id
+            return (
+                agent_product_analysis(
+                    product_id
+                )
             )
 
         return {
-            "tool": "product_analysis",
-            "error": (
+
+            "tool":
+                "product_analysis",
+
+            "error":
                 "A product ID is required. "
                 "Example: P000001"
-            )
         }
-
 
     if intent == "category_analysis":
 
-        categories = extract_categories(query)
+        categories = (
+            extract_categories(query)
+        )
 
         if categories:
 
-            return agent_category_analysis(
-                categories[0]
+            return (
+                agent_category_analysis(
+                    categories[0]
+                )
             )
 
         return {
-            "tool": "category_analysis",
-            "error": (
-                "Please specify a valid category."
-            )
-        }
 
+            "tool":
+                "category_analysis",
+
+            "error":
+                "Please specify a valid category."
+        }
 
     if intent == "comparison":
 
-        categories = extract_categories(query)
+        categories = (
+            extract_categories(query)
+        )
 
         if len(categories) >= 2:
 
-            return agent_category_comparison(
-                categories[0],
-                categories[1]
+            return (
+                agent_category_comparison(
+                    categories[0],
+                    categories[1]
+                )
             )
 
         return {
-            "tool": "category_comparison",
-            "error": (
-                "Please specify two valid categories."
-            )
-        }
 
+            "tool":
+                "category_comparison",
+
+            "error":
+                "Please specify two valid categories."
+        }
 
     if intent == "highest_risk":
 
-        return agent_highest_risk_category()
-
+        return (
+            agent_highest_risk_category()
+        )
 
     if intent == "overall":
 
-        return agent_overall_analysis()
-
+        return (
+            agent_overall_analysis()
+        )
 
     return None
 
@@ -663,57 +927,62 @@ def generate_gemini_tool_response(
 ):
 
     if gemini_client is None:
+
         return None
 
     system_context = """
+
 You are ReviewGuard AI Agent.
 
-ReviewGuard is an AI-powered e-commerce review
-trust and risk analyzer.
+ReviewGuard is an AI-powered e-commerce
+review trust and risk analyzer.
 
-The application has Python-based analytical tools
-that calculate facts from the ReviewGuard dataset.
+The application has Python-based analytical
+tools that calculate facts from the
+ReviewGuard dataset.
 
 IMPORTANT RULES:
 
-1. Use ONLY the information in TOOL RESULT for
-   ReviewGuard-specific factual claims.
+1. Use ONLY the information in TOOL RESULT
+   for ReviewGuard-specific factual claims.
 
 2. Never invent product IDs, statistics,
    percentages, review counts or ratings.
 
 3. Never claim that a review is definitely fake.
-   Use terms such as:
-   "suspicious",
-   "potentially suspicious",
-   "risk indicator",
-   or "likely suspicious".
 
-4. Explain technical analysis in simple language.
+4. Use terms such as:
+   suspicious,
+   potentially suspicious,
+   risk indicator,
+   or likely suspicious.
 
-5. Keep the answer concise but useful.
+5. Explain technical analysis in simple language.
 
-6. If TOOL RESULT contains an error, clearly
-   explain the error instead of inventing data.
+6. Keep the answer concise but useful.
 
-7. Do not mention internal implementation details
-   unless useful to the user.
+7. If TOOL RESULT contains an error,
+   clearly explain the error.
 
-8. ReviewGuard uses behavioral review signals
+8. Do not invent missing information.
+
+9. ReviewGuard uses behavioral review signals
    and machine-learning models.
 
-9. The dataset is used for analysis and its
-   suspicious-review label should not be presented
-   as absolute proof of fraud.
+10. The suspicious-review label should not
+    be presented as absolute proof of fraud.
 """
 
     prompt = f"""
+
 {system_context}
 
 USER QUESTION:
+
 {user_query}
 
 TOOL RESULT:
+
 {tool_result}
 
 Answer the user's question naturally.
@@ -721,9 +990,13 @@ Answer the user's question naturally.
 
     try:
 
-        interaction = gemini_client.interactions.create(
-            model="gemini-3.6-flash",
-            input=prompt
+        interaction = (
+            gemini_client
+            .interactions
+            .create(
+                model="gemini-3.6-flash",
+                input=prompt
+            )
         )
 
         return interaction.output_text
@@ -742,6 +1015,7 @@ def generate_gemini_general_response(
 ):
 
     if gemini_client is None:
+
         return (
             "Gemini is not connected. "
             "I can currently answer ReviewGuard "
@@ -749,8 +1023,9 @@ def generate_gemini_general_response(
         )
 
     system_context = """
-You are the general-purpose Large Language Model
-inside the ReviewGuard AI Agent.
+
+You are the general-purpose Large Language
+Model inside the ReviewGuard AI Agent.
 
 You can answer general questions naturally.
 
@@ -766,18 +1041,18 @@ Examples include:
 - Technical concepts
 - Writing and brainstorming
 
-However, when a question requires exact
-ReviewGuard dataset statistics, do not invent
-those statistics. The application should use
-its analytical tools for those questions.
+When a question requires exact ReviewGuard
+dataset statistics, do not invent them.
 
 Be concise, helpful and technically accurate.
 """
 
     prompt = f"""
+
 {system_context}
 
 USER QUESTION:
+
 {user_query}
 
 Provide a helpful answer.
@@ -785,9 +1060,13 @@ Provide a helpful answer.
 
     try:
 
-        interaction = gemini_client.interactions.create(
-            model="gemini-3.6-flash",
-            input=prompt
+        interaction = (
+            gemini_client
+            .interactions
+            .create(
+                model="gemini-3.6-flash",
+                input=prompt
+            )
         )
 
         return interaction.output_text
@@ -814,13 +1093,15 @@ def ask_agent(query):
 
     if intent != "general":
 
-        tool_result = run_agent_tool(query)
+        tool_result = (
+            run_agent_tool(query)
+        )
 
         if tool_result is None:
 
             answer = (
-                "I could not run the ReviewGuard "
-                "analysis tool."
+                "I could not run the "
+                "ReviewGuard analysis tool."
             )
 
         else:
@@ -838,8 +1119,9 @@ def ask_agent(query):
 
             else:
 
-                answer = str(tool_result)
-
+                answer = str(
+                    tool_result
+                )
 
     # --------------------------------------------------------
     # GENERAL GEMINI MODE
@@ -852,7 +1134,6 @@ def ask_agent(query):
                 query
             )
         )
-
 
     # --------------------------------------------------------
     # SAVE HISTORY
@@ -872,15 +1153,17 @@ def ask_agent(query):
 # HEADER
 # ============================================================
 
-st.title("🛡️ ReviewGuard")
+st.title(
+    "🛡️ ReviewGuard"
+)
 
 st.markdown(
     """
 ### AI-Powered Review Trust & Risk Analyzer
 
 Detect suspicious review patterns, understand risk,
-analyze products and interact with the ReviewGuard
-AI Agent.
+analyze products and categories, compare models,
+and interact with the ReviewGuard AI Agent.
 """
 )
 
@@ -888,630 +1171,1261 @@ st.divider()
 
 
 # ============================================================
-# AI AGENT
+# TOP NAVIGATION
 # ============================================================
 
-st.subheader("🤖 ReviewGuard AI Agent")
-
-if gemini_client:
-
-    st.success(
-        "Gemini LLM connected • Agent ready"
-    )
-
-else:
-
-    st.warning(
-        "Gemini API is not connected. "
-        "Local ReviewGuard analysis is still available."
-    )
-
-
-agent_query = st.text_input(
-    "Ask ReviewGuard anything",
-    placeholder=(
-        "Try: P000001 ka suspicious rate kya hai?"
-    )
+tabs = st.tabs(
+    [
+        "🏠 Overview",
+        "🔍 Review Analyzer",
+        "📦 Product Analysis",
+        "📊 Dashboard",
+        "🤖 Models",
+        "✨ Gemini Agent"
+    ]
 )
 
 
-if st.button(
-    "🤖 Ask Agent",
-    use_container_width=True
-):
-
-    if agent_query.strip():
-
-        with st.spinner(
-            "ReviewGuard Agent is analyzing..."
-        ):
-
-            answer = ask_agent(
-                agent_query
-            )
-
-        st.markdown(
-            "### Agent Response"
-        )
-
-        st.write(answer)
-
-    else:
-
-        st.warning(
-            "Please enter a question."
-        )
-
-
 # ============================================================
-# CHAT HISTORY
+# TAB 1 — OVERVIEW
 # ============================================================
 
-if st.session_state.agent_history:
+with tabs[0]:
 
-    with st.expander(
-        "💬 Agent Conversation History"
-    ):
-
-        for item in st.session_state.agent_history:
-
-            st.markdown(
-                f"**You:** {item['user']}"
-            )
-
-            st.markdown(
-                f"**🤖 ReviewGuard:** "
-                f"{item['answer']}"
-            )
-
-            st.divider()
-
-
-st.caption(
-    "Agent workflow: User Query → Intent Detection → "
-    "Tool Selection → Data/ML Analysis → Gemini LLM"
-)
-
-st.divider()
-
-
-# ============================================================
-# SECTION 1 — SINGLE REVIEW ANALYZER
-# ============================================================
-
-st.header("🔍 1. Single Review Analyzer")
-
-col1, col2, col3 = st.columns(3)
-
-
-with col1:
-
-    year = st.number_input(
-        "Year",
-        min_value=2020,
-        max_value=2030,
-        value=2026
+    st.header(
+        "🏠 ReviewGuard Overview"
     )
 
-    month = st.number_input(
-        "Month",
-        min_value=1,
-        max_value=12,
-        value=9
-    )
+    st.markdown(
+        """
+        **ReviewGuard** is an AI-powered e-commerce
+        review trust and risk analyzer.
 
-    star_rating = st.slider(
-        "Star Rating",
-        min_value=1,
-        max_value=5,
-        value=5
-    )
-
-    sentiment = st.selectbox(
-        "Sentiment",
-        sorted(
-            df["sentiment"]
-            .dropna()
-            .unique()
-        )
-    )
-
-    verified_purchase = st.selectbox(
-        "Verified Purchase",
-        [0, 1],
-        format_func=lambda x:
-        "Yes" if x == 1 else "No"
-    )
-
-
-with col2:
-
-    review_length_words = st.number_input(
-        "Review Length (words)",
-        min_value=1,
-        value=25
-    )
-
-    title_word_count = st.number_input(
-        "Title Word Count",
-        min_value=0,
-        value=4
-    )
-
-    num_images_attached = st.number_input(
-        "Images Attached",
-        min_value=0,
-        value=0
-    )
-
-    helpful_votes = st.number_input(
-        "Helpful Votes",
-        min_value=0,
-        value=0
-    )
-
-    total_votes = st.number_input(
-        "Total Votes",
-        min_value=1,
-        value=1
-    )
-
-    has_title = st.selectbox(
-        "Has Title",
-        [0, 1],
-        format_func=lambda x:
-        "Yes" if x == 1 else "No"
-    )
-
-
-with col3:
-
-    days_since_purchase = st.number_input(
-        "Days Since Purchase",
-        min_value=0,
-        value=2
-    )
-
-    reviewer_review_count = st.number_input(
-        "Reviewer Review Count",
-        min_value=0,
-        value=1
-    )
-
-    is_top_reviewer = st.selectbox(
-        "Top Reviewer",
-        [0, 1],
-        format_func=lambda x:
-        "Yes" if x == 1 else "No"
-    )
-
-    is_early_review = st.selectbox(
-        "Early Review",
-        [0, 1],
-        format_func=lambda x:
-        "Yes" if x == 1 else "No"
-    )
-
-    exclamation_marks = st.number_input(
-        "Exclamation Marks",
-        min_value=0,
-        value=6
-    )
-
-    all_caps_ratio = st.number_input(
-        "All Caps Ratio (%)",
-        min_value=0.0,
-        value=25.0
-    )
-
-    readability_score = st.number_input(
-        "Readability Score",
-        min_value=0.0,
-        value=70.0
-    )
-
-
-col4, col5, col6 = st.columns(3)
-
-
-with col4:
-
-    category = st.selectbox(
-        "Category",
-        sorted(
-            df["category"]
-            .dropna()
-            .unique()
-        )
-    )
-
-
-with col5:
-
-    price_usd = st.number_input(
-        "Price (USD)",
-        min_value=0.0,
-        value=49.99
-    )
-
-
-with col6:
-
-    price_tier = st.selectbox(
-        "Price Tier",
-        sorted(
-            df["price_tier"]
-            .dropna()
-            .unique()
-        )
-    )
-
-
-brand_tier = st.selectbox(
-    "Brand Tier",
-    sorted(
-        df["brand_tier"]
-        .dropna()
-        .unique()
-    )
-)
-
-
-if st.button(
-    "🔎 Analyze Review",
-    type="primary",
-    use_container_width=True
-):
-
-    helpful_ratio = (
-        helpful_votes / total_votes
-        if total_votes > 0
-        else 0
-    )
-
-    current_review = {
-
-        "year": year,
-
-        "month": month,
-
-        "star_rating": star_rating,
-
-        "sentiment": sentiment,
-
-        "verified_purchase":
-        verified_purchase,
-
-        "review_length_words":
-        review_length_words,
-
-        "title_word_count":
-        title_word_count,
-
-        "num_images_attached":
-        num_images_attached,
-
-        "helpful_votes":
-        helpful_votes,
-
-        "total_votes":
-        total_votes,
-
-        "helpful_ratio":
-        helpful_ratio,
-
-        "days_since_purchase":
-        days_since_purchase,
-
-        "reviewer_review_count":
-        reviewer_review_count,
-
-        "is_top_reviewer":
-        is_top_reviewer,
-
-        "is_early_review":
-        is_early_review,
-
-        "exclamation_marks":
-        exclamation_marks,
-
-        "all_caps_ratio":
-        all_caps_ratio,
-
-        "readability_score":
-        readability_score,
-
-        "category":
-        category,
-
-        "price_usd":
-        price_usd,
-
-        "price_tier":
-        price_tier,
-
-        "brand_tier":
-        brand_tier
-    }
-
-    st.session_state.current_review = (
-        current_review
-    )
-
-    prediction = get_prediction(
-        current_review
-    )
-
-    signals = generate_explanation(
-        current_review
+        It combines **machine learning, behavioral
+        signals, data analysis and Gemini-powered
+        Agentic AI** to identify potentially
+        suspicious review patterns.
+        """
     )
 
     st.subheader(
-        "Prediction"
+        "🎯 What ReviewGuard Does"
     )
 
-    result_col1, result_col2, result_col3 = (
+    overview_col1, overview_col2, overview_col3 = (
         st.columns(3)
     )
 
-    with result_col1:
+    with overview_col1:
 
-        st.metric(
-            "Classification",
-            prediction["classification"]
+        st.markdown(
+            """
+            ### 🔍 Detect
+
+            Analyze review-level behavioral
+            signals and estimate suspicious-review
+            risk.
+            """
         )
 
-    with result_col2:
+    with overview_col2:
 
-        st.metric(
-            "Fake Risk",
-            f"{prediction['fake_risk']:.2f}%"
+        st.markdown(
+            """
+            ### 📊 Analyze
+
+            Study products, categories,
+            ratings and suspicious-review
+            patterns.
+            """
         )
 
-    with result_col3:
+    with overview_col3:
 
-        st.metric(
-            "Genuine Chance",
-            f"{prediction['genuine_chance']:.2f}%"
+        st.markdown(
+            """
+            ### 🤖 Assist
+
+            Ask Gemini questions using natural
+            language through the ReviewGuard
+            Agent.
+            """
         )
+
+    st.divider()
 
     st.subheader(
-        "🧠 Why this prediction?"
+        "📁 Dataset Snapshot"
     )
 
-    for signal in signals:
+    total = len(df)
 
-        st.write(
-            f"⚠️ {signal}"
-        )
-
-    st.info(
-        "Risk score is an indicator of suspicious "
-        "patterns, not proof that a review is fake."
+    suspicious = int(
+        df["is_fake_review"].sum()
     )
 
-
-# ============================================================
-# SECTION 2 — PRODUCT REVIEW HEALTH
-# ============================================================
-
-st.header(
-    "📦 2. Product Review Health"
-)
-
-selected_product = st.selectbox(
-    "Select Product",
-    sorted(
-        df["product_id"]
-        .dropna()
-        .unique()
-    )
-)
-
-product_df = df[
-    df["product_id"]
-    == selected_product
-]
-
-
-if not product_df.empty:
-
-    total_reviews = len(
-        product_df
-    )
-
-    suspicious_reviews = int(
-        product_df["is_fake_review"]
-        .sum()
-    )
-
-    genuine_reviews = (
-        total_reviews
-        - suspicious_reviews
+    genuine = (
+        total - suspicious
     )
 
     suspicious_rate = (
-        suspicious_reviews
-        / total_reviews
-        * 100
+        suspicious / total * 100
     )
 
-    avg_rating = (
-        product_df["star_rating"]
-        .mean()
+    categories_count = (
+        df["category"]
+        .nunique()
+    )
+
+    products_count = (
+        df["product_id"]
+        .nunique()
+    )
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+
+    c1.metric(
+        "Total Reviews",
+        f"{total:,}"
+    )
+
+    c2.metric(
+        "Genuine Reviews",
+        f"{genuine:,}"
+    )
+
+    c3.metric(
+        "Suspicious Reviews",
+        f"{suspicious:,}"
+    )
+
+    c4.metric(
+        "Categories",
+        categories_count
+    )
+
+    c5.metric(
+        "Products",
+        products_count
+    )
+
+    st.info(
+        f"The current dataset contains "
+        f"{total:,} reviews. Approximately "
+        f"{suspicious_rate:.2f}% are labelled "
+        f"suspicious in this dataset."
+    )
+
+    st.subheader(
+        "⚙️ ReviewGuard Workflow"
+    )
+
+    st.markdown(
+        """
+        **Review Data**
+        ↓
+        **Feature Analysis**
+        ↓
+        **Machine Learning Models**
+        ↓
+        **Risk Score**
+        ↓
+        **Explainability**
+        ↓
+        **Product / Category Analytics**
+        ↓
+        **ReviewGuard Agent**
+        ↓
+        **Gemini LLM**
+        """
+    )
+
+    st.caption(
+        "Risk scores are indicators of suspicious "
+        "patterns, not proof of fraud."
+    )
+
+
+# ============================================================
+# TAB 2 — SINGLE REVIEW ANALYZER
+# ============================================================
+
+with tabs[1]:
+
+    st.header(
+        "🔍 Single Review Analyzer"
+    )
+
+    st.write(
+        "Enter review characteristics and let "
+        "ReviewGuard estimate the suspicious risk."
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        year = st.number_input(
+            "Year",
+            min_value=2020,
+            max_value=2030,
+            value=2026
+        )
+
+        month = st.number_input(
+            "Month",
+            min_value=1,
+            max_value=12,
+            value=9
+        )
+
+        star_rating = st.slider(
+            "Star Rating",
+            min_value=1,
+            max_value=5,
+            value=5
+        )
+
+        sentiment = st.selectbox(
+            "Sentiment",
+            sorted(
+                df["sentiment"]
+                .dropna()
+                .unique()
+            )
+        )
+
+        verified_purchase = st.selectbox(
+            "Verified Purchase",
+            [0, 1],
+            format_func=lambda x:
+            "Yes" if x == 1 else "No"
+        )
+
+    with col2:
+
+        review_length_words = st.number_input(
+            "Review Length (words)",
+            min_value=1,
+            value=25
+        )
+
+        title_word_count = st.number_input(
+            "Title Word Count",
+            min_value=0,
+            value=4
+        )
+
+        num_images_attached = st.number_input(
+            "Images Attached",
+            min_value=0,
+            value=0
+        )
+
+        helpful_votes = st.number_input(
+            "Helpful Votes",
+            min_value=0,
+            value=0
+        )
+
+        total_votes = st.number_input(
+            "Total Votes",
+            min_value=1,
+            value=1
+        )
+
+        has_title = st.selectbox(
+            "Has Title",
+            [0, 1],
+            format_func=lambda x:
+            "Yes" if x == 1 else "No"
+        )
+
+    with col3:
+
+        days_since_purchase = st.number_input(
+            "Days Since Purchase",
+            min_value=0,
+            value=2
+        )
+
+        reviewer_review_count = st.number_input(
+            "Reviewer Review Count",
+            min_value=0,
+            value=1
+        )
+
+        is_top_reviewer = st.selectbox(
+            "Top Reviewer",
+            [0, 1],
+            format_func=lambda x:
+            "Yes" if x == 1 else "No"
+        )
+
+        is_early_review = st.selectbox(
+            "Early Review",
+            [0, 1],
+            format_func=lambda x:
+            "Yes" if x == 1 else "No"
+        )
+
+        exclamation_marks = st.number_input(
+            "Exclamation Marks",
+            min_value=0,
+            value=6
+        )
+
+        all_caps_ratio = st.number_input(
+            "All Caps Ratio (%)",
+            min_value=0.0,
+            value=25.0
+        )
+
+        readability_score = st.number_input(
+            "Readability Score",
+            min_value=0.0,
+            value=70.0
+        )
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+
+        category = st.selectbox(
+            "Category",
+            sorted(
+                df["category"]
+                .dropna()
+                .unique()
+            )
+        )
+
+    with col5:
+
+        price_usd = st.number_input(
+            "Price (USD)",
+            min_value=0.0,
+            value=49.99
+        )
+
+    with col6:
+
+        price_tier = st.selectbox(
+            "Price Tier",
+            sorted(
+                df["price_tier"]
+                .dropna()
+                .unique()
+            )
+        )
+
+    brand_tier = st.selectbox(
+        "Brand Tier",
+        sorted(
+            df["brand_tier"]
+            .dropna()
+            .unique()
+        )
+    )
+
+    if st.button(
+        "🔎 Analyze Review",
+        type="primary",
+        use_container_width=True
+    ):
+
+        helpful_ratio = (
+            helpful_votes / total_votes
+            if total_votes > 0
+            else 0
+        )
+
+        current_review = {
+
+            "year":
+                year,
+
+            "month":
+                month,
+
+            "star_rating":
+                star_rating,
+
+            "sentiment":
+                sentiment,
+
+            "verified_purchase":
+                verified_purchase,
+
+            "review_length_words":
+                review_length_words,
+
+            "title_word_count":
+                title_word_count,
+
+            "num_images_attached":
+                num_images_attached,
+
+            "helpful_votes":
+                helpful_votes,
+
+            "total_votes":
+                total_votes,
+
+            "helpful_ratio":
+                helpful_ratio,
+
+            "days_since_purchase":
+                days_since_purchase,
+
+            "reviewer_review_count":
+                reviewer_review_count,
+
+            "is_top_reviewer":
+                is_top_reviewer,
+
+            "is_early_review":
+                is_early_review,
+
+            "exclamation_marks":
+                exclamation_marks,
+
+            "all_caps_ratio":
+                all_caps_ratio,
+
+            "readability_score":
+                readability_score,
+
+            "category":
+                category,
+
+            "price_usd":
+                price_usd,
+
+            "price_tier":
+                price_tier,
+
+            "brand_tier":
+                brand_tier
+        }
+
+        st.session_state.current_review = (
+            current_review
+        )
+
+        prediction = get_prediction(
+            current_review
+        )
+
+        signals = generate_explanation(
+            current_review
+        )
+
+        st.divider()
+
+        st.subheader(
+            "🎯 Prediction"
+        )
+
+        result_col1, result_col2, result_col3 = (
+            st.columns(3)
+        )
+
+        with result_col1:
+
+            st.metric(
+                "Classification",
+                prediction[
+                    "classification"
+                ]
+            )
+
+        with result_col2:
+
+            st.metric(
+                "Fake Risk",
+                f"{prediction['fake_risk']:.2f}%"
+            )
+
+        with result_col3:
+
+            st.metric(
+                "Genuine Chance",
+                f"{prediction['genuine_chance']:.2f}%"
+            )
+
+        st.subheader(
+            "🧠 Why this prediction?"
+        )
+
+        for signal in signals:
+
+            st.write(
+                f"⚠️ {signal}"
+            )
+
+        st.info(
+            "Risk score is an indicator of "
+            "suspicious patterns, not proof that "
+            "a review is fake."
+        )
+
+
+# ============================================================
+# TAB 3 — PRODUCT ANALYSIS
+# ============================================================
+
+with tabs[2]:
+
+    st.header(
+        "📦 Product Review Health"
+    )
+
+    selected_product = st.selectbox(
+        "Select Product",
+        sorted(
+            df["product_id"]
+            .dropna()
+            .unique()
+        )
+    )
+
+    product_df = df[
+        df["product_id"]
+        == selected_product
+    ]
+
+    if not product_df.empty:
+
+        total_reviews = len(
+            product_df
+        )
+
+        suspicious_reviews = int(
+            product_df[
+                "is_fake_review"
+            ].sum()
+        )
+
+        genuine_reviews = (
+            total_reviews
+            - suspicious_reviews
+        )
+
+        suspicious_rate = (
+            suspicious_reviews
+            / total_reviews
+            * 100
+        )
+
+        avg_rating = (
+            product_df[
+                "star_rating"
+            ].mean()
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+
+        c1.metric(
+            "Total Reviews",
+            total_reviews
+        )
+
+        c2.metric(
+            "Genuine Reviews",
+            genuine_reviews
+        )
+
+        c3.metric(
+            "Suspicious Reviews",
+            suspicious_reviews
+        )
+
+        c4.metric(
+            "Average Rating",
+            f"{avg_rating:.2f} ⭐"
+        )
+
+        st.progress(
+            min(
+                suspicious_rate / 100,
+                1.0
+            )
+        )
+
+        st.caption(
+            f"Suspicious Review Rate: "
+            f"{suspicious_rate:.2f}%"
+        )
+
+        st.divider()
+
+        st.subheader(
+            "📋 Product Review Data"
+        )
+
+        display_columns = [
+
+            "review_id",
+            "star_rating",
+            "sentiment",
+            "verified_purchase",
+            "review_length_words",
+            "is_fake_review"
+        ]
+
+        available_columns = [
+            col
+            for col in display_columns
+            if col in product_df.columns
+        ]
+
+        st.dataframe(
+            product_df[
+                available_columns
+            ].head(50),
+            use_container_width=True
+        )
+
+        st.info(
+            f"Product {selected_product} has "
+            f"{total_reviews} review records in "
+            f"the current dataset."
+        )
+
+
+# ============================================================
+# TAB 4 — DASHBOARD
+# ============================================================
+
+with tabs[3]:
+
+    st.header(
+        "📊 ReviewGuard Analytics Dashboard"
+    )
+
+    st.write(
+        "Explore suspicious-review patterns "
+        "across categories and the complete dataset."
+    )
+
+    # --------------------------------------------------------
+    # Overall metrics
+    # --------------------------------------------------------
+
+    total_reviews = len(df)
+
+    total_suspicious = int(
+        df["is_fake_review"].sum()
+    )
+
+    total_genuine = (
+        total_reviews
+        - total_suspicious
+    )
+
+    overall_rate = (
+        total_suspicious
+        / total_reviews
+        * 100
     )
 
     c1, c2, c3, c4 = st.columns(4)
 
     c1.metric(
         "Total Reviews",
-        total_reviews
+        f"{total_reviews:,}"
     )
 
     c2.metric(
         "Genuine Reviews",
-        genuine_reviews
+        f"{total_genuine:,}"
     )
 
     c3.metric(
         "Suspicious Reviews",
-        suspicious_reviews
+        f"{total_suspicious:,}"
     )
 
     c4.metric(
-        "Average Rating",
-        f"{avg_rating:.2f} ⭐"
+        "Suspicious Rate",
+        f"{overall_rate:.2f}%"
     )
 
-    st.progress(
-        min(
-            suspicious_rate / 100,
-            1.0
+    st.divider()
+
+    # --------------------------------------------------------
+    # Category statistics
+    # --------------------------------------------------------
+
+    category_stats = (
+        df.groupby("category")
+        .agg(
+            total_reviews=(
+                "is_fake_review",
+                "count"
+            ),
+            suspicious_reviews=(
+                "is_fake_review",
+                "sum"
+            ),
+            average_rating=(
+                "star_rating",
+                "mean"
+            )
         )
+        .reset_index()
+    )
+
+    category_stats[
+        "genuine_reviews"
+    ] = (
+        category_stats[
+            "total_reviews"
+        ]
+        -
+        category_stats[
+            "suspicious_reviews"
+        ]
+    )
+
+    category_stats[
+        "suspicious_rate"
+    ] = (
+        category_stats[
+            "suspicious_reviews"
+        ]
+        /
+        category_stats[
+            "total_reviews"
+        ]
+        * 100
+    )
+
+    st.subheader(
+        "📈 Suspicious Review Rate by Category"
+    )
+
+    chart_data = (
+        category_stats[
+            [
+                "category",
+                "suspicious_rate"
+            ]
+        ]
+        .set_index("category")
+    )
+
+    st.bar_chart(
+        chart_data
     )
 
     st.caption(
-        f"Suspicious Review Rate: "
-        f"{suspicious_rate:.2f}%"
+        "Higher values indicate a higher proportion "
+        "of suspicious-labelled reviews in that category."
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # Category table
+    # --------------------------------------------------------
+
+    st.subheader(
+        "📋 Category Performance"
+    )
+
+    category_display = (
+        category_stats[
+            [
+                "category",
+                "total_reviews",
+                "genuine_reviews",
+                "suspicious_reviews",
+                "suspicious_rate",
+                "average_rating"
+            ]
+        ]
+        .sort_values(
+            "suspicious_rate",
+            ascending=False
+        )
+        .copy()
+    )
+
+    category_display[
+        "suspicious_rate"
+    ] = category_display[
+        "suspicious_rate"
+    ].round(2)
+
+    category_display[
+        "average_rating"
+    ] = category_display[
+        "average_rating"
+    ].round(2)
+
+    st.dataframe(
+        category_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # Highest risk category
+    # --------------------------------------------------------
+
+    highest_risk_row = (
+        category_stats
+        .loc[
+            category_stats[
+                "suspicious_rate"
+            ].idxmax()
+        ]
+    )
+
+    st.info(
+        f"Highest suspicious-review rate in "
+        f"the current dataset: "
+        f"**{highest_risk_row['category']}** "
+        f"at "
+        f"**{highest_risk_row['suspicious_rate']:.2f}%**."
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # Category comparison
+    # --------------------------------------------------------
+
+    st.subheader(
+        "⚖️ Category Comparison"
+    )
+
+    comparison_col1, comparison_col2 = (
+        st.columns(2)
+    )
+
+    category_list = sorted(
+        df["category"]
+        .dropna()
+        .unique()
+    )
+
+    with comparison_col1:
+
+        comparison_category_1 = (
+            st.selectbox(
+                "First Category",
+                category_list,
+                key="comparison_category_1"
+            )
+        )
+
+    with comparison_col2:
+
+        comparison_category_2 = (
+            st.selectbox(
+                "Second Category",
+                category_list,
+                index=min(
+                    1,
+                    len(category_list) - 1
+                ),
+                key="comparison_category_2"
+            )
+        )
+
+    if (
+        comparison_category_1
+        and comparison_category_2
+    ):
+
+        result1 = agent_category_analysis(
+            comparison_category_1
+        )
+
+        result2 = agent_category_analysis(
+            comparison_category_2
+        )
+
+        compare_c1, compare_c2 = (
+            st.columns(2)
+        )
+
+        with compare_c1:
+
+            st.markdown(
+                f"### {comparison_category_1}"
+            )
+
+            st.metric(
+                "Suspicious Rate",
+                f"{result1['suspicious_rate']:.2f}%"
+            )
+
+            st.metric(
+                "Average Rating",
+                f"{result1['average_rating']:.2f} ⭐"
+            )
+
+            st.write(
+                f"Total reviews: "
+                f"{result1['total_reviews']:,}"
+            )
+
+        with compare_c2:
+
+            st.markdown(
+                f"### {comparison_category_2}"
+            )
+
+            st.metric(
+                "Suspicious Rate",
+                f"{result2['suspicious_rate']:.2f}%"
+            )
+
+            st.metric(
+                "Average Rating",
+                f"{result2['average_rating']:.2f} ⭐"
+            )
+
+            st.write(
+                f"Total reviews: "
+                f"{result2['total_reviews']:,}"
+            )
+
+    st.divider()
+
+    st.subheader(
+        "💡 Dashboard Interpretation"
+    )
+
+    st.markdown(
+        f"""
+        - The dataset contains **{total_reviews:,}**
+          total reviews.
+        - **{total_suspicious:,}** reviews are
+          labelled suspicious.
+        - The overall suspicious-review rate is
+          **{overall_rate:.2f}%**.
+        - Category-level rates can be used to
+          identify areas requiring further review
+          or investigation.
+        """
     )
 
 
 # ============================================================
-# SECTION 3 — OVERALL REVIEW HEALTH
+# TAB 5 — MODELS
 # ============================================================
 
-st.header(
-    "📊 3. Overall Review Health"
-)
+with tabs[4]:
 
-total_reviews = len(df)
+    st.header(
+        "🤖 Machine Learning Models"
+    )
 
-total_suspicious = int(
-    df["is_fake_review"].sum()
-)
+    st.subheader(
+        "⚖️ Model Performance Comparison"
+    )
 
-total_genuine = (
-    total_reviews
-    - total_suspicious
-)
+    model_results = pd.DataFrame({
 
-overall_rate = (
-    total_suspicious
-    / total_reviews
-    * 100
-)
+        "Model": [
+            "Logistic Regression",
+            "Random Forest"
+        ],
 
-c1, c2, c3 = st.columns(3)
+        "Accuracy": [
+            1.00,
+            1.00
+        ],
 
-c1.metric(
-    "Total Reviews",
-    f"{total_reviews:,}"
-)
+        "Precision": [
+            1.00,
+            1.00
+        ],
 
-c2.metric(
-    "Genuine Reviews",
-    f"{total_genuine:,}"
-)
+        "Recall": [
+            1.00,
+            1.00
+        ],
 
-c3.metric(
-    "Suspicious Reviews",
-    f"{total_suspicious:,}"
-)
+        "F1 Score": [
+            1.00,
+            1.00
+        ]
+    })
 
-st.metric(
-    "Overall Suspicious Rate",
-    f"{overall_rate:.2f}%"
-)
+    st.dataframe(
+        model_results,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.info(
+        "Both models achieved 100% on the held-out "
+        "test split of the synthetic dataset. "
+        "This should not be interpreted as "
+        "real-world accuracy."
+    )
+
+    st.divider()
+
+    st.subheader(
+        "🧠 Models Used"
+    )
+
+    model_col1, model_col2 = (
+        st.columns(2)
+    )
+
+    with model_col1:
+
+        st.markdown(
+            """
+            ### Logistic Regression
+
+            - Linear classification model
+            - Strong interpretable baseline
+            - Produces probability estimates
+            - Useful for understanding feature effects
+            """
+        )
+
+    with model_col2:
+
+        st.markdown(
+            """
+            ### Random Forest
+
+            - Ensemble of decision trees
+            - Captures nonlinear relationships
+            - Robust classification approach
+            - Produces probability estimates
+            """
+        )
+
+    st.divider()
+
+    st.subheader(
+        "🔎 Important Behavioral Signals"
+    )
+
+    signal_col1, signal_col2 = (
+        st.columns(2)
+    )
+
+    with signal_col1:
+
+        st.markdown(
+            """
+            - Exclamation marks
+            - Capitalization ratio
+            - Star rating
+            - Sentiment
+            - Reviewer history
+            """
+
+        )
+
+    with signal_col2:
+
+        st.markdown(
+            """
+            - Early-review behavior
+            - Purchase verification
+            - Review engagement
+            - Review length
+            - Readability
+            """
+        )
+
+    st.divider()
+
+    st.subheader(
+        "🏗️ ReviewGuard ML Architecture"
+    )
+
+    st.code(
+        """
+Review Data
+     ↓
+Feature Engineering
+     ↓
+Preprocessing
+     ↓
+ ┌─────────────────────┐
+ │                     │
+ ▼                     ▼
+Logistic Regression   Random Forest
+ │                     │
+ └──────────┬──────────┘
+            ↓
+       Risk Score
+            ↓
+      Explanation
+            ↓
+      Gemini Agent
+        """,
+        language="text"
+    )
 
 
 # ============================================================
-# SECTION 4 — MODEL PERFORMANCE COMPARISON
+# TAB 6 — GEMINI AGENT
 # ============================================================
 
-st.header(
-    "⚖️ 4. Model Performance Comparison"
-)
+with tabs[5]:
 
-model_results = pd.DataFrame({
+    st.header(
+        "✨ ReviewGuard Gemini Agent"
+    )
 
-    "Model": [
-        "Logistic Regression",
-        "Random Forest"
-    ],
+    st.markdown(
+        """
+        Ask questions naturally about ReviewGuard,
+        your dataset, products, categories, or even
+        general technical topics.
+        """
+    )
 
-    "Accuracy": [
-        1.00,
-        1.00
-    ],
+    if gemini_client:
 
-    "Precision": [
-        1.00,
-        1.00
-    ],
+        st.success(
+            "🟢 Gemini LLM connected • Agent ready"
+        )
 
-    "Recall": [
-        1.00,
-        1.00
-    ],
+    else:
 
-    "F1 Score": [
-        1.00,
-        1.00
-    ]
-})
+        st.warning(
+            "🟡 Gemini API is not connected. "
+            "Local ReviewGuard analysis is still available."
+        )
 
+    st.subheader(
+        "💬 Ask ReviewGuard"
+    )
 
-st.dataframe(
-    model_results,
-    use_container_width=True
-)
+    agent_query = st.text_input(
+        "Your question",
+        placeholder=(
+            "Try: P000001 ka suspicious rate kya hai?"
+        ),
+        key="agent_query"
+    )
 
-st.info(
-    "Both models achieved 100% on the held-out "
-    "test split of the synthetic dataset. "
-    "This should not be interpreted as "
-    "real-world accuracy."
-)
+    if st.button(
+        "🤖 Ask Agent",
+        type="primary",
+        use_container_width=True
+    ):
+
+        if agent_query.strip():
+
+            with st.spinner(
+                "ReviewGuard Agent is analyzing..."
+            ):
+
+                answer = ask_agent(
+                    agent_query
+                )
+
+            st.subheader(
+                "💡 Agent Response"
+            )
+
+            st.markdown(
+                answer
+            )
+
+        else:
+
+            st.warning(
+                "Please enter a question."
+            )
+
+    st.divider()
+
+    st.subheader(
+        "🧪 Example Questions"
+    )
+
+    example_col1, example_col2 = (
+        st.columns(2)
+    )
+
+    with example_col1:
+
+        st.markdown(
+            """
+            **ReviewGuard Questions**
+
+            - `P000001 ka suspicious rate kya hai?`
+            - `Overall suspicious rate kya hai?`
+            - `Which category has the highest risk?`
+            - `Electronics suspicious rate kya hai?`
+            - `Compare Electronics and Books`
+            - `Why is this review suspicious?`
+            """
+        )
+
+    with example_col2:
+
+        st.markdown(
+            """
+            **General AI Questions**
+
+            - `What is TF-IDF?`
+            - `Explain Random Forest`
+            - `Write a Python Fibonacci program`
+            - `What is overfitting?`
+            - `Explain precision and recall`
+            - `What is machine learning?`
+            """
+        )
+
+    # --------------------------------------------------------
+    # Conversation history
+    # --------------------------------------------------------
+
+    if st.session_state.agent_history:
+
+        st.divider()
+
+        st.subheader(
+            "💬 Agent Conversation History"
+        )
+
+        for item in reversed(
+            st.session_state.agent_history
+        ):
+
+            with st.expander(
+                f"You: {item['user']}"
+            ):
+
+                st.markdown(
+                    "**🤖 ReviewGuard:**"
+                )
+
+                st.markdown(
+                    item["answer"]
+                )
 
 
 # ============================================================
-# SECTION 5 — MODEL INFORMATION
+# FOOTER
 # ============================================================
 
-st.header(
-    "ℹ️ 5. Model Information"
-)
+st.divider()
 
-st.markdown(
-    """
-### Models Used
-
-**Logistic Regression**
-- Linear classification model
-- Provides a strong interpretable baseline
-
-**Random Forest**
-- Ensemble of decision trees
-- Captures nonlinear feature relationships
-
-### Important Features
-
-- Exclamation marks
-- Capitalization ratio
-- Star rating
-- Sentiment
-- Reviewer history
-- Early-review behavior
-- Purchase verification
-- Review engagement
-
-### Architecture
-
-**Data → Preprocessing → ML Models → Prediction
-→ Risk Score → Explanation → Agent → Gemini LLM**
-"""
+st.caption(
+    "🛡️ ReviewGuard — AI-Powered Review Trust & Risk Analyzer"
 )
 
 st.caption(
-    "ReviewGuard — AI Review Trust & Risk Analyzer"
+    "Agent workflow: User Query → Intent Detection → "
+    "Tool Selection → Data/ML Analysis → Gemini LLM"
 )
